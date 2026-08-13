@@ -31,7 +31,10 @@ struct Projector {
         let cf = cos(phi * Self.d), sf = sin(phi * Self.d)
         let lat = asin(rho == 0 ? sf : cc * sf + y * sc * cf / rho)
         let lon = lam + atan2(x * sc, rho * cc * cf - y * sc * sf) / Self.d
-        return (((lon + 540).truncatingRemainder(dividingBy: 360)) - 180, lat / Self.d)
+        // truncatingRemainder 對負數同樣回傳負值，先取一次餘數再平移才安全
+        let wrapped = (lon.truncatingRemainder(dividingBy: 360) + 540)
+            .truncatingRemainder(dividingBy: 360) - 180
+        return (wrapped, lat / Self.d)
     }
 
     /// 一段線跨越地平線時，把交點推回球緣，避免填色時穿幫
@@ -180,6 +183,16 @@ struct GlobeView: View {
             )
             .onTapGesture { pt in
                 let proj = projector(for: size, lam: lam(at: Date()))
+                // 微型國家一定被鄰國的多邊形蓋住，所以先用螢幕距離判定。
+                // 固定角度半徑不行——放大六倍時那會變成很大的誤觸區。
+                var nearest: (Country, Double)? = nil
+                for c in store.countries where c.isMicro {
+                    let r = proj.project(c.lon, c.lat)
+                    guard r.z > 0.02 else { continue }
+                    let d = Double(hypot(r.p.x - pt.x, r.p.y - pt.y))
+                    if d <= 22, nearest == nil || d < nearest!.1 { nearest = (c, d) }
+                }
+                if let hit = nearest { onPick(hit.0); return }
                 if let ll = proj.unproject(pt),
                    let c = countryAt(lon: ll.lon, lat: ll.lat, in: store.countries) {
                     onPick(c)
@@ -240,13 +253,15 @@ struct GlobeView: View {
             ctx.fill(combined, with: .color(pal.land))
             ctx.stroke(combined, with: .color(pal.edge), lineWidth: 0.5)
         }
-        // 微型國家用一個圈代表
-        for country in store.countries where country.isMicro && store.isOn(country.id) {
+        // 微型國家沒有形狀，一律畫一個小圈——沒畫出來的話使用者根本不知道可以點
+        for country in store.countries where country.isMicro {
             let r = proj.project(country.lon, country.lat)
             if r.z < 0.02 { continue }
-            let dot = Path(ellipseIn: CGRect(x: r.p.x - 4.5, y: r.p.y - 4.5, width: 9, height: 9))
-            ctx.fill(dot, with: .color(pal.on))
-            ctx.stroke(dot, with: .color(.white), lineWidth: 1.2)
+            let on = store.isOn(country.id)
+            let s: CGFloat = on ? 9 : 5
+            let dot = Path(ellipseIn: CGRect(x: r.p.x - s/2, y: r.p.y - s/2, width: s, height: s))
+            ctx.fill(dot, with: .color(on ? pal.on : pal.edge))
+            if on { ctx.stroke(dot, with: .color(.white), lineWidth: 1.2) }
         }
         // 城市
         for pin in store.pins {

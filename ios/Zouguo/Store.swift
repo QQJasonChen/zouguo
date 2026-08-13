@@ -7,8 +7,12 @@ final class Store: ObservableObject {
     @Published var cities: [City] = []
     @Published var state = TripState()
     @Published var filterYear: Int? = nil
+    /// 存檔出問題時給 UI 看的訊息（磁碟滿、檔案毀損）
+    @Published var problem: String? = nil
 
     private var byISO: [String: Country] = [:]
+    private var byCity: [String: City] = [:]        // "cc/name" → City
+    private var pinCache: [City] = []               // 只在 state 變動時重算
     private let fileURL: URL = {
         let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         return dir.appendingPathComponent("zouguo.json")
@@ -26,7 +30,12 @@ final class Store: ObservableObject {
 
     var visitedCount: Int { state.c.count }
     var cityCount: Int { state.c.values.reduce(0) { $0 + $1.t.count } }
-    var worldPercent: Int { Int((Double(visitedCount) / 195.0 * 100).rounded()) }
+    /// 分母由資料裡標了 w 的項目算出來，跟分子是同一個集合
+    private var worldTotal: Int { max(countries.filter { $0.w == 1 }.count, 1) }
+    var worldPercent: Int {
+        let counted = state.c.keys.filter { byISO[$0]?.w == 1 }.count
+        return Int((Double(counted) / Double(worldTotal) * 100).rounded())
+    }
 
     /// 所有填過的年份，由小到大
     var years: [Int] { Array(Set(state.c.values.flatMap(\.y))).sorted() }
@@ -69,15 +78,18 @@ final class Store: ObservableObject {
     func removeCountry(_ iso: String) { state.c.removeValue(forKey: iso); save() }
     func reset() { state = TripState(); filterYear = nil; save() }
 
-    /// 已標記國家裡的城市座標，畫在地球上
-    var pins: [City] {
+    /// 已標記國家裡的城市座標，畫在地球上。
+    /// 地球是 30fps 重畫的，這裡絕不能做線性搜尋——改成索引 + 快取。
+    var pins: [City] { pinCache }
+
+    private func rebuildPins() {
         var out: [City] = []
         for (iso, v) in state.c {
             for name in v.t {
-                if let hit = cities.first(where: { $0.cc == iso && $0.name == name }) { out.append(hit) }
+                if let hit = byCity["\(iso)/\(name)"] { out.append(hit) }
             }
         }
-        return out
+        pinCache = out
     }
 
     // MARK: - 存取
@@ -92,7 +104,7 @@ final class Store: ObservableObject {
         if let u = Bundle.main.url(forResource: "cities", withExtension: "json"),
            let d = try? Data(contentsOf: u),
            let raw = try? JSONSerialization.jsonObject(with: d) as? [[Any]] {
-            cities = raw.compactMap { row in
+            let parsed: [City] = raw.compactMap { row in
                 guard row.count >= 5,
                       let name = row[0] as? String, let cc = row[1] as? String,
                       let lat = (row[2] as? NSNumber)?.doubleValue,
@@ -100,18 +112,34 @@ final class Store: ObservableObject {
                       let pop = (row[4] as? NSNumber)?.intValue else { return nil }
                 return City(name: name, cc: cc, lat: lat, lon: lon, pop: pop)
             }
+            cities = parsed
+            byCity = Dictionary(parsed.map { ("\($0.cc)/\($0.name)", $0) }, uniquingKeysWith: { a, _ in a })
         }
     }
 
     private func loadSaved() {
-        guard let d = try? Data(contentsOf: fileURL),
-              let s = try? JSONDecoder().decode(TripState.self, from: d) else { return }
-        state = s
+        guard let d = try? Data(contentsOf: fileURL) else { rebuildPins(); return }
+        do {
+            state = try JSONDecoder().decode(TripState.self, from: d)
+        } catch {
+            // 檔案毀損時不要當作「沒有資料」就蓋掉，先留一份殘骸供救援
+            let broken = fileURL.deletingLastPathComponent().appendingPathComponent("zouguo-broken.json")
+            try? d.write(to: broken, options: .atomic)
+            problem = "本機資料讀不出來，已保留一份原始檔（zouguo-broken.json）。"
+        }
+        rebuildPins()
     }
 
     func save() {
-        guard let d = try? JSONEncoder().encode(state) else { return }
-        try? d.write(to: fileURL, options: .atomic)
+        rebuildPins()
+        do {
+            let d = try JSONEncoder().encode(state)
+            try d.write(to: fileURL, options: .atomic)
+            problem = nil
+        } catch {
+            // 靜靜失敗最糟：使用者以為存好了，重開才發現不見
+            problem = "存檔失敗，請先用「分享與備份」把資料匯出：\(error.localizedDescription)"
+        }
     }
 
     // MARK: - 與 web 版互通
@@ -140,6 +168,25 @@ final class Store: ObservableObject {
             state = s; save(); return true
         }
         return false
+    }
+
+    /// ShareLink 傳 String 只會送出一段文字，某些接收端根本不出現。
+    /// 寫成暫存 .json 檔再分享，才是真的「備份檔」。
+    func exportFileURL() -> URL? {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("zouguo-backup.json")
+        guard let d = try? JSONEncoder().encode(state) else { return nil }
+        do { try d.write(to: url, options: .atomic); return url } catch { return nil }
+    }
+
+    /// 從 Files 選進來的備份檔
+    @discardableResult
+    func importFile(_ url: URL) -> Bool {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let d = try? Data(contentsOf: url),
+              let s = try? JSONDecoder().decode(TripState.self, from: d) else { return false }
+        state = s; save(); return true
     }
 
     func exportJSON() -> String {

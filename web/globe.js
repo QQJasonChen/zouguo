@@ -5,6 +5,8 @@
    - 去過的國家整片著色，可依年份逐年點亮
 */
 const DEG = Math.PI / 180;
+/** 把任意角度收進 [-180, 180)。單獨抽出來，unproject 與 flyTo 共用同一套。 */
+export const wrap180 = a => ((a % 360) + 540) % 360 - 180;
 
 export class Globe {
   constructor(canvas, opts = {}) {
@@ -27,6 +29,7 @@ export class Globe {
     this.touches = new Map(); this.pinch = null;
     this.colors = {};
     this._lastHover = 0;
+    this._microHits = [];
 
     this._bind();
     this.resize();
@@ -78,7 +81,21 @@ export class Globe {
     const cf = Math.cos(this.rot.phi * DEG), sf = Math.sin(this.rot.phi * DEG);
     const lat = Math.asin(rho === 0 ? sf : cc * sf + y * sc * cf / rho);
     const lon = this.rot.lam + Math.atan2(x * sc, rho * cc * cf - y * sc * sf) / DEG;
-    return [((lon + 540) % 360) - 180, lat / DEG];
+    // JS 的 % 對負數回傳負值：往左轉超過一圈後 lam 會是很大的負數，
+    // 直接 (lon+540)%360-180 會吐出 -340 這種超出 ±180 的值，接著就選錯國家
+    return [wrap180(lon), lat / DEG];
+  }
+
+  /** 螢幕座標附近有沒有微型國家的標記（它們一定被鄰國多邊形蓋住，
+   *  所以要在多邊形判定之前先用螢幕距離攔截；用固定角度半徑的話，
+   *  放大六倍時會變成很大的誤觸區） */
+  microAt(sx, sy, tol = 14) {
+    let best = null, bd = tol;
+    for (const h of this._microHits) {
+      const d = Math.hypot(h.x - sx, h.y - sy);
+      if (d <= bd) { bd = d; best = h.c; }
+    }
+    return best;
   }
 
   /** 經緯度落在哪個國家（射線法）
@@ -211,14 +228,17 @@ export class Globe {
       g.strokeStyle = this.colors.edge; g.lineWidth = .45; g.stroke();
     }
 
-    // 微型國家：沒有形狀，用一個小圈代表
+    // 微型國家沒有形狀，一律畫一個小圈——沒畫出來就沒人知道那裡可以點
+    this._microHits = [];
     for (const c of this.countries) {
-      if (c.r.length || !this._isOn(c.id)) continue;
+      if (c.r.length) continue;
       const p = this.project(c.c[0], c.c[1]);
       if (p[2] < 0.02) continue;
-      g.beginPath(); g.arc(p[0], p[1], 4.5, 0, 7);
-      g.fillStyle = this.colors.on; g.fill();
-      g.strokeStyle = '#fff'; g.lineWidth = 1.2; g.stroke();
+      const on = this._isOn(c.id);
+      this._microHits.push({ c, x: p[0], y: p[1] });
+      g.beginPath(); g.arc(p[0], p[1], on ? 4.5 : 2.6, 0, 7);
+      g.fillStyle = on ? this.colors.on : this.colors.edge; g.fill();
+      if (on) { g.strokeStyle = '#fff'; g.lineWidth = 1.2; g.stroke(); }
     }
 
     // 光照，讓球有立體感
@@ -288,8 +308,9 @@ export class Globe {
       if (now - this._lastHover < 60) return;      // 節流：射線法要掃上萬個點
       this._lastHover = now;
       const r = cv.getBoundingClientRect();
-      const ll = this.unproject(e.clientX - r.left, e.clientY - r.top);
-      const c = ll ? this.countryAt(ll[0], ll[1]) : null;
+      const mx = e.clientX - r.left, my = e.clientY - r.top;
+      const ll = this.unproject(mx, my);
+      const c = this.microAt(mx, my) || (ll ? this.countryAt(ll[0], ll[1]) : null);
       const iso = c ? c.id : null;
       if (iso !== this.hoverIso) {
         this.hoverIso = iso;
@@ -305,7 +326,10 @@ export class Globe {
       this.drag = null;
       if (d && d.moved < 5) {                       // 幾乎沒移動 → 視為點擊
         const r = cv.getBoundingClientRect();
-        const ll = this.unproject(e.clientX - r.left, e.clientY - r.top);
+        const mx = e.clientX - r.left, my = e.clientY - r.top;
+        const micro = this.microAt(mx, my, 18);
+        if (micro) { this.onPick(micro); return; }
+        const ll = this.unproject(mx, my);
         if (ll) {
           const c = this.countryAt(ll[0], ll[1]);
           if (c) this.onPick(c);
@@ -328,7 +352,8 @@ export class Globe {
   /** 轉到某個經緯度（例如剛選好的國家） */
   flyTo(lon, lat) {
     this.spin = false;
-    this.target = { lam: lon, phi: Math.max(-60, Math.min(60, lat)) };
+    this.vel = 0;
+    this.target = { lam: wrap180(lon), phi: Math.max(-60, Math.min(60, lat)) };
   }
 
   start() {

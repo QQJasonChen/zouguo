@@ -9,6 +9,7 @@ struct Country: Decodable, Identifiable, Hashable {
     let r: [[Double]]       // 本土多邊形，扁平的 [lon,lat,lon,lat,...]
     let o: [[Double]]?      // 遠離本土的海外領土，不隨本土一起點亮
     let micro: Int?         // 國土太小、沒有多邊形，用一個點代表
+    let w: Int?             // 計入「世界進度」的分母（195 成員＋台灣／港澳／科索沃）
 
     var isMicro: Bool { micro == 1 || r.isEmpty }
     var lon: Double { c[0] }

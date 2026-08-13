@@ -83,6 +83,22 @@ button { font: inherit; cursor: pointer; }
 .ghost:hover { border-color: var(--accent); color: var(--accent); }
 .only-narrow { display: none; }
 
+/* ---------- 預覽別人的地球 ---------- */
+.previewbar {
+  display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+  flex-wrap: wrap; padding: .5rem .9rem; font-size: .8125rem;
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+  border-bottom: 1px solid var(--accent);
+}
+.previewbar[hidden] { display: none !important; }
+.previewbar b { font-weight: 600; }
+.pv-btns { display: flex; gap: .4rem; }
+.pv-btns button {
+  border: 1px solid var(--accent); background: var(--panel); color: var(--accent);
+  border-radius: var(--r); padding: .25rem .6rem; font-size: .78rem;
+}
+.pv-btns button:hover { background: var(--accent); color: #fff; }
+
 /* ---------- layout ---------- */
 main { flex: 1; display: grid; grid-template-columns: 1fr 340px; min-height: 0; }
 .stage { position: relative; min-height: 0; display: flex; }

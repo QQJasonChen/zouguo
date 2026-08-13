@@ -4,7 +4,9 @@
 import { Globe } from './globe.js';
 
 const KEY = 'zouguo.v1';
-const UN_MEMBERS = 195;            // 世界覆蓋率的分母：聯合國會員國＋觀察員
+// 分母不寫死：由資料裡標了 w 的項目算出來（195 個聯合國成員＋台灣／港澳／科索沃）。
+// 寫死 195 會讓分子分母不是同一個集合，永遠到不了 100%。
+let WORLD_TOTAL = 199;
 
 const $ = s => document.querySelector(s);
 const el = (t, c, x) => { const n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
@@ -12,12 +14,13 @@ const el = (t, c, x) => { const n = document.createElement(t); if (c) n.classNam
 let COUNTRIES = [], CITIES = [], BY_ISO = new Map(), BY_CITY = new Map();
 let state = { v: 1, c: {} };       // c: { ISO: { y:[年份], t:[城市] } }
 let globe, sortMode = 'count', filterYear = null;
+let preview = false, myState = null;   // 看別人的分享連結時，不動到自己的資料
 
 /* ---------- 狀態 ---------- */
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) state = JSON.parse(raw);
+    if (raw) state = sanitize(JSON.parse(raw)) || { v: 1, c: {} };
   } catch { /* 壞掉就用空的 */ }
   if (!state || typeof state !== 'object' || !state.c) state = { v: 1, c: {} };
 }
@@ -25,6 +28,29 @@ function save() {
   try { localStorage.setItem(KEY, JSON.stringify(state)); }
   catch { toast('這台裝置的儲存空間滿了，改用「匯出備份」保存'); }
 }
+/** 任何來自外部的狀態（本機舊資料、分享連結、匯入檔）都要先過這關。
+ *  沒有這層，{"c":{"TW":null}} 這種內容會在讀 v.y 時直接讓畫面掛掉。 */
+function sanitize(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+  if (obj.v !== undefined && obj.v !== 1) return null;          // 不認得的版本寧可不收
+  const src = obj.c;
+  if (!src || typeof src !== 'object' || Array.isArray(src)) return null;
+  const out = {};
+  let n = 0;
+  for (const [iso, v] of Object.entries(src)) {
+    if (++n > 400) break;
+    if (!BY_ISO.has(iso)) continue;                             // 不認識的國家碼直接丟掉
+    const y = Array.isArray(v && v.y)
+      ? [...new Set(v.y.filter(x => Number.isInteger(x) && x >= 1900 && x <= 2100))].sort((a, b) => a - b).slice(0, 150)
+      : [];
+    const t = Array.isArray(v && v.t)
+      ? [...new Set(v.t.filter(x => typeof x === 'string' && x.length > 0 && x.length < 80))].slice(0, 400)
+      : [];
+    out[iso] = { y, t };
+  }
+  return { v: 1, c: out };
+}
+
 const picked = iso => Object.prototype.hasOwnProperty.call(state.c, iso);
 function entry(iso) {
   if (!picked(iso)) state.c[iso] = { y: [], t: [] };
@@ -55,20 +81,22 @@ async function init() {
   COUNTRIES = cs;
   CITIES = ct.map(([name, cc, lat, lon, pop]) => ({ name, cc, lat, lon, pop }));
   COUNTRIES.forEach(c => BY_ISO.set(c.id, c));
+  WORLD_TOTAL = COUNTRIES.filter(c => c.w).length || 199;
   CITIES.forEach(c => { BY_CITY.set(c.cc + '/' + c.name, c); });
 
   load();
+  myState = state;                       // 先把「我自己的」收好
   if (location.hash.length > 3) {
     try {
-      const shared = dec(location.hash.slice(1));
-      if (shared && shared.c) {
+      const shared = sanitize(dec(location.hash.slice(1)));
+      if (shared) {
         state = shared;
-        toast('看的是別人分享的地球，按「匯出備份」可以留一份');
+        preview = true;                  // 預覽模式：這段期間一律不寫回 localStorage
       }
     } catch { /* hash 壞了就忽略 */ }
   }
 
-  if (new URLSearchParams(location.search).get('demo') === '1') state = demoState();
+  if (new URLSearchParams(location.search).get('demo') === '1') { state = demoState(); preview = true; }
 
   const saved = localStorage.getItem('zouguo.theme');
   if (saved) document.documentElement.dataset.theme = saved;
@@ -121,6 +149,17 @@ async function selftest() {
   ok('太平洋上不對到國家', globe.countryAt(-150, 0) === null);
   ok('南極海不對到國家', globe.countryAt(0, -60) === null);
 
+  // 往左轉好幾圈之後，反投影還要落在 ±180 之內
+  const keepRot = { ...globe.rot };
+  let wrapOK = true, wrapSample = '';
+  for (const lam of [-700, -400, 400, 900]) {
+    globe.rot = { lam, phi: 0 };
+    const ll = globe.unproject(globe.cx, globe.cy);   // 球心＝正對鏡頭那一點
+    if (!ll || ll[0] < -180 || ll[0] > 180) { wrapOK = false; wrapSample = lam + '→' + (ll ? ll[0].toFixed(1) : 'null'); break; }
+  }
+  globe.rot = keepRot;
+  ok('轉多圈後經度仍在 ±180 內', wrapOK, wrapSample);
+
   // 匯出圖片真的產得出 PNG
   const before = state;
   state = demoState(); syncGlobe(); render();
@@ -133,6 +172,16 @@ async function selftest() {
   });
   ok('地球畫布可輸出 PNG', blob && blob.size > 1000, blob ? blob.size + ' bytes' : 'null');
   ok('範例資料統計正確', Object.keys(demoState().c).length === 9);
+  ok('世界進度分母合理', WORLD_TOTAL >= 195 && WORLD_TOTAL <= 210, String(WORLD_TOTAL));
+
+  // 微型國家：畫過一幀後要能用螢幕座標點到（它們被鄰國多邊形蓋住）
+  globe.rot = { lam: 103.85, phi: 1 };   // 把鏡頭轉到新加坡正上方，否則它在背面
+  globe.setZoom(1); globe.draw();
+  const sgP = globe.project(103.85, 1.29);
+  const sgHit = sgP[2] > 0 ? globe.microAt(sgP[0], sgP[1], 18) : null;
+  ok('微型國家可用螢幕座標點到', sgHit && sgHit.id === 'SG', sgHit ? sgHit.id : '不在可見面');
+  globe.rot = { lam: 10, phi: 20 };
+  ok('所有 195 成員都在資料裡', COUNTRIES.filter(c => c.w).length === WORLD_TOTAL);
   state = before; syncGlobe(); render();
 
   const fails = out.filter(l => l.startsWith('FAIL'));
@@ -163,7 +212,8 @@ function render() {
   const cityCount = isos.reduce((s, i) => s + (state.c[i].t || []).length, 0);
   $('#c-country').textContent = isos.length;
   $('#c-city').textContent = cityCount;
-  $('#c-pct').textContent = Math.round(isos.length / UN_MEMBERS * 100) + '%';
+  const counted = isos.filter(i => (BY_ISO.get(i) || {}).w).length;
+  $('#c-pct').textContent = Math.round(counted / WORLD_TOTAL * 100) + '%';
 
   const list = $('#list');
   list.textContent = '';
@@ -202,7 +252,8 @@ function render() {
     }
     $('#tl-all').setAttribute('aria-pressed', String(filterYear === null));
   }
-  save();
+  document.getElementById('previewbar').hidden = !preview;
+  if (!preview) save();                 // 預覽別人的地球時絕不覆蓋自己的紀錄
 }
 
 function toast(msg) {
@@ -341,7 +392,8 @@ function exportPNG() {
 
   g.fillStyle = ink3;
   g.font = '400 26px "Avenir Next", "PingFang TC", sans-serif';
-  g.fillText(`${isos.length} 個國家 · ${cities} 個城市 · 世界的 ${Math.round(isos.length / UN_MEMBERS * 100)}%`, 72, 172);
+  const counted = isos.filter(i => (BY_ISO.get(i) || {}).w).length;
+  g.fillText(`${isos.length} 個國家 · ${cities} 個城市 · 世界的 ${Math.round(counted / WORLD_TOTAL * 100)}%`, 72, 172);
 
   // 底部列出國家名，塞不下就收尾
   const names = isos.map(i => (BY_ISO.get(i) || {}).zh).filter(Boolean)
@@ -461,9 +513,10 @@ function wire() {
   $('#btn-import').addEventListener('change', async e => {
     const f = e.target.files[0]; if (!f) return;
     try {
-      const obj = JSON.parse(await f.text());
-      if (!obj || !obj.c) throw new Error('格式不對');
-      state = obj; syncGlobe(); render(); toast('匯入完成');
+      const clean = sanitize(JSON.parse(await f.text()));
+      if (!clean) throw new Error('格式不對');
+      if (!confirm('匯入會取代目前的標記，確定嗎？（建議先按「匯出備份」）')) return;
+      state = clean; preview = false; syncGlobe(); render(); toast('匯入完成');
     } catch { toast('這個檔案看起來不是走過的備份'); }
     e.target.value = '';
   });
@@ -472,9 +525,27 @@ function wire() {
     state = { v: 1, c: {} }; filterYear = null; syncGlobe(); render(); toast('已清空');
   });
   $('#demo').addEventListener('click', () => {
-    state = demoState();
+    if (!preview) myState = state;
+    state = demoState(); preview = true;
     filterYear = null; syncGlobe(); render();
-    toast('這是範例，按「全部清除」就能換成你自己的');
+  });
+  $('#pv-keep').addEventListener('click', () => {
+    const merged = { v: 1, c: { ...(myState ? myState.c : {}) } };
+    for (const [iso, v] of Object.entries(state.c)) {
+      if (!merged.c[iso]) merged.c[iso] = { y: [...v.y], t: [...v.t] };
+      else {
+        merged.c[iso].y = [...new Set([...merged.c[iso].y, ...v.y])].sort((a, b) => a - b);
+        merged.c[iso].t = [...new Set([...merged.c[iso].t, ...v.t])];
+      }
+    }
+    state = merged; preview = false;
+    history.replaceState(null, '', location.pathname);
+    syncGlobe(); render(); toast('已經併進你自己的紀錄');
+  });
+  $('#pv-back').addEventListener('click', () => {
+    state = myState || { v: 1, c: {} }; preview = false;
+    history.replaceState(null, '', location.pathname);
+    filterYear = null; syncGlobe(); render();
   });
 }
 

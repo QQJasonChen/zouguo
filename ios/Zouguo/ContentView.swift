@@ -32,6 +32,11 @@ struct ContentView: View {
         .sheet(isPresented: $showList) { VisitedList { editing = $0 }.environmentObject(store) }
         .sheet(isPresented: $showSearch) { SearchSheet { editing = $0 }.environmentObject(store) }
         .sheet(isPresented: $showTools) { ToolsSheet(toast: $toast).environmentObject(store) }
+        .alert("資料沒有存起來", isPresented: Binding(
+            get: { store.problem != nil },
+            set: { if !$0 { store.problem = nil } })) {
+            Button("知道了", role: .cancel) { store.problem = nil }
+        } message: { Text(store.problem ?? "") }
         .overlay(alignment: .bottom) {
             if let t = toast {
                 Text(t).font(.footnote)

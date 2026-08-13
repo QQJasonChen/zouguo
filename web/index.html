@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>走過 · 你的世界地圖</title>
-<meta name="description" content="填一填去過哪裡，馬上變成一顆可以轉的地球。資料只存在你的裝置裡。">
+<meta name="description" content="填一填去過哪裡，馬上變成一顆可以轉的地球。沒有帳號、不上傳。">
 <meta name="theme-color" content="#C8452A">
 <link rel="stylesheet" href="app.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌏</text></svg>">
@@ -26,6 +26,14 @@
     <button id="btn-menu" class="ghost only-narrow" aria-label="開關側欄">☰</button>
   </div>
 </header>
+
+<div id="previewbar" class="previewbar" hidden>
+  <span>你正在看別人分享的地球，<b>你自己的紀錄沒有被動到</b>。</span>
+  <span class="pv-btns">
+    <button id="pv-keep">併進我的紀錄</button>
+    <button id="pv-back">回到我的</button>
+  </span>
+</div>
 
 <main>
   <section class="stage">
@@ -75,8 +83,9 @@
     </div>
 
     <p class="privacy">
-      資料只存在這台裝置的瀏覽器裡，沒有帳號、沒有伺服器、不會上傳。
-      換裝置請用「匯出備份」。
+      這個網站沒有帳號、沒有伺服器、不會主動上傳任何東西，資料存在你瀏覽器的
+      localStorage。要注意的是：分享連結會把內容編進網址（那是編碼不是加密），
+      而 localStorage 以網域為單位，同網域下的其他頁面讀得到。換裝置請用「匯出備份」。
     </p>
   </aside>
 </main>

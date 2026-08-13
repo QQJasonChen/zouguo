@@ -93,6 +93,7 @@ struct ToolsSheet: View {
     @Binding var toast: String?
     @State private var pasteText = ""
     @State private var confirmReset = false
+    @State private var showImporter = false
 
     var body: some View {
         NavigationStack {
@@ -112,10 +113,14 @@ struct ToolsSheet: View {
                 }
 
                 Section("備份") {
-                    ShareLink(item: store.exportJSON(),
-                              preview: SharePreview("zouguo-backup.json")) {
-                        Label("匯出備份檔", systemImage: "arrow.down.doc")
+                    if let file = store.exportFileURL() {
+                        ShareLink(item: file) {
+                            Label("匯出備份檔", systemImage: "arrow.down.doc")
+                        }
                     }
+                    Button {
+                        showImporter = true
+                    } label: { Label("從檔案匯入", systemImage: "folder") }
                     TextField("貼上分享連結或備份內容", text: $pasteText, axis: .vertical)
                         .lineLimit(1...4).font(.caption.monospaced())
                     Button("從剪貼簿匯入") {
@@ -128,12 +133,23 @@ struct ToolsSheet: View {
                 Section {
                     Button(role: .destructive) { confirmReset = true } label: { Text("全部清除") }
                 } footer: {
-                    Text("資料只存在這台裝置上，沒有帳號也沒有伺服器。")
+                    Text("這個 app 沒有帳號也不會主動上傳。資料放在 app 的 Documents，\n"
+                         + "會隨 iCloud／電腦備份一起備份；分享連結是編碼不是加密。")
                 }
             }
             .navigationTitle("分享與備份")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("關閉") { dismiss() } } }
+            .fileImporter(isPresented: $showImporter,
+                          allowedContentTypes: [.json], allowsMultipleSelection: false) { result in
+                switch result {
+                case .success(let urls):
+                    if let u = urls.first, store.importFile(u) { toast = "匯入完成"; dismiss() }
+                    else { toast = "這個檔案讀不出來" }
+                case .failure:
+                    toast = "沒有選到檔案"
+                }
+            }
             .alert("確定要清掉全部標記？", isPresented: $confirmReset) {
                 Button("清除", role: .destructive) { store.reset(); toast = "已清空"; dismiss() }
                 Button("取消", role: .cancel) { }
