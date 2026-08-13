@@ -158,6 +158,10 @@ export class Globe {
     const g = this.ctx;
     g.moveTo(seg[0][0], seg[0][1]);
     for (let i = 1; i < seg.length; i++) g.lineTo(seg[i][0], seg[i][1]);
+    // 註：這裡刻意用 closePath 拉弦，而不是沿球緣補圓弧。
+    // 試過短弧與長弧兩種方向，用俄羅斯在 lam=-70 phi=20 實測填色像素：
+    // 直線 3701 > 短弧 3390 > 長弧 2739——補弧反而讓形狀更小。
+    // 要真正修好需要完整的球面裁切（像 D3 的 clipCircle），不是單一 arc 呼叫。
     g.closePath();
   }
 
