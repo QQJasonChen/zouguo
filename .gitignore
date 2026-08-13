@@ -1,0 +1,8 @@
+.DS_Store
+scripts/cities1000.txt
+scripts/world.json
+scripts/countryInfo.txt
+scripts/__pycache__/
+ios/Zouguo.xcodeproj/
+ios/build/
+ios/DerivedData/

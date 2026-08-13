@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>走過 · 你的世界地圖</title>
+<meta name="description" content="填一填去過哪裡，馬上變成一顆可以轉的地球。資料只存在你的裝置裡。">
+<meta name="theme-color" content="#C8452A">
+<link rel="stylesheet" href="app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌏</text></svg>">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <h1>走過<span class="dot">.</span></h1>
+    <p class="tag">你去過的地方，值得一顆地球</p>
+  </div>
+  <div class="counts">
+    <div class="ct"><b id="c-country">0</b><span>國家</span></div>
+    <div class="ct"><b id="c-city">0</b><span>城市</span></div>
+    <div class="ct"><b id="c-pct">0%</b><span>世界</span></div>
+  </div>
+  <div class="topbtns">
+    <button id="btn-theme" class="ghost" aria-label="切換深淺色">◐</button>
+    <button id="btn-menu" class="ghost only-narrow" aria-label="開關側欄">☰</button>
+  </div>
+</header>
+
+<main>
+  <section class="stage">
+    <canvas id="globe" aria-label="地球，點國家就能標記去過"></canvas>
+    <div id="tip" class="tip" role="status"></div>
+    <div class="zoomer">
+      <button id="z-in" aria-label="放大">＋</button>
+      <button id="z-out" aria-label="縮小">－</button>
+      <button id="z-rst" aria-label="回到原本大小">⟲</button>
+    </div>
+    <p class="hint" id="hint">點地球上的國家就能標記 · 拖曳轉動 · 滾輪縮放</p>
+  </section>
+
+  <aside class="side" id="side">
+    <div class="search">
+      <input id="q" type="search" placeholder="搜尋國家或城市…" autocomplete="off"
+             aria-label="搜尋國家或城市">
+      <div id="results" class="results" hidden></div>
+    </div>
+
+    <div class="timeline" id="timeline" hidden>
+      <div class="tl-head">
+        <span>時間軸</span>
+        <button id="tl-all" class="mini" aria-pressed="true">全部</button>
+      </div>
+      <div class="tl-years" id="tl-years"></div>
+    </div>
+
+    <div class="listwrap">
+      <div class="list-head">
+        <span id="list-title">還沒有標記</span>
+        <button id="sort" class="mini">依字母</button>
+      </div>
+      <div id="list" class="list"></div>
+      <p id="empty" class="empty">
+        還沒開始。點地球上任何一個國家，或用上面的搜尋框找。<br>
+        <button id="demo" class="linky">先看看範例</button>
+      </p>
+    </div>
+
+    <div class="tools">
+      <button id="btn-png" class="primary">存成圖片</button>
+      <button id="btn-share">複製分享連結</button>
+      <button id="btn-export">匯出備份</button>
+      <label class="filebtn">匯入備份<input id="btn-import" type="file" accept="application/json" hidden></label>
+      <button id="btn-reset" class="danger">全部清除</button>
+    </div>
+
+    <p class="privacy">
+      資料只存在這台裝置的瀏覽器裡，沒有帳號、沒有伺服器、不會上傳。
+      換裝置請用「匯出備份」。
+    </p>
+  </aside>
+</main>
+
+<div id="editor" class="editor" hidden role="dialog" aria-modal="true" aria-labelledby="ed-name">
+  <div class="ed-card">
+    <button id="ed-close" class="ed-x" aria-label="關閉">✕</button>
+    <h2 id="ed-name">—</h2>
+    <p class="ed-sub" id="ed-sub"></p>
+
+    <div class="ed-row">
+      <label>去過的年份</label>
+      <div id="ed-years" class="chips"></div>
+      <div class="yearadd">
+        <input id="ed-year-input" type="number" inputmode="numeric" placeholder="2019"
+               min="1900" max="2100" aria-label="加入年份">
+        <button id="ed-year-add">加入</button>
+      </div>
+    </div>
+
+    <div class="ed-row">
+      <label>去過的城市</label>
+      <div id="ed-cities" class="chips"></div>
+      <div class="cityadd">
+        <input id="ed-city-input" type="search" placeholder="搜尋這個國家的城市…" autocomplete="off"
+               aria-label="加入城市">
+        <div id="ed-city-results" class="results inline" hidden></div>
+      </div>
+    </div>
+
+    <div class="ed-foot">
+      <button id="ed-remove" class="danger">從清單移除</button>
+      <button id="ed-done" class="primary">完成</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
