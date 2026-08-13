@@ -9,7 +9,7 @@ const UN_MEMBERS = 195;            // 世界覆蓋率的分母：聯合國會員
 const $ = s => document.querySelector(s);
 const el = (t, c, x) => { const n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
 
-let COUNTRIES = [], CITIES = [], BY_ISO = new Map();
+let COUNTRIES = [], CITIES = [], BY_ISO = new Map(), BY_CITY = new Map();
 let state = { v: 1, c: {} };       // c: { ISO: { y:[年份], t:[城市] } }
 let globe, sortMode = 'count', filterYear = null;
 
@@ -39,7 +39,9 @@ function enc(obj) {
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 function dec(str) {
-  const b = atob(str.replace(/-/g, '+').replace(/_/g, '/'));
+  let s = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';          // Safari 的 atob 少了 padding 會丟例外
+  const b = atob(s);
   return JSON.parse(new TextDecoder().decode(Uint8Array.from(b, c => c.charCodeAt(0))));
 }
 
@@ -53,6 +55,7 @@ async function init() {
   COUNTRIES = cs;
   CITIES = ct.map(([name, cc, lat, lon, pop]) => ({ name, cc, lat, lon, pop }));
   COUNTRIES.forEach(c => BY_ISO.set(c.id, c));
+  CITIES.forEach(c => { BY_CITY.set(c.cc + '/' + c.name, c); });
 
   load();
   if (location.hash.length > 3) {
@@ -87,7 +90,7 @@ function syncGlobe() {
   globe.pins = [];
   for (const [iso, v] of Object.entries(state.c)) {
     for (const name of (v.t || [])) {
-      const city = CITIES.find(x => x.cc === iso && x.name === name);
+      const city = BY_CITY.get(iso + '/' + name);
       if (city) globe.pins.push({ lon: city.lon, lat: city.lat, name });
     }
   }

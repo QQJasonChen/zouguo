@@ -134,24 +134,37 @@ struct GlobeView: View {
     @State private var zoom = 1.0
     @State private var dragStart: (Double, Double)? = nil
     @State private var zoomStart: Double = 1
-    @State private var spinning = true
+    /// 自轉的參考點。有值＝正在自轉；角度由「現在時間 − 起點」算出來，
+    /// 而不是每幀累加——在 Canvas 繪製途中改 @State 會觸發 SwiftUI 的
+    /// "Modifying state during view update" 未定義行為。
+    @State private var spinFrom: (date: Date, lam: Double)? = (Date(), 10.0)
+    private let spinDegPerSec = 6.0
+
+    private func lam(at date: Date) -> Double {
+        guard let s = spinFrom else { return lam }
+        return (s.lam + date.timeIntervalSince(s.date) * spinDegPerSec)
+            .truncatingRemainder(dividingBy: 360)
+    }
+    /// 停止自轉，並把當下的角度固定下來
+    private func freezeSpin(at date: Date = Date()) {
+        if spinFrom != nil { lam = lam(at: date); spinFrom = nil }
+    }
 
     var body: some View {
         GeometryReader { geo in
             let size = geo.size
             let pal = GlobePalette.of(scheme)
 
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !spinning)) { _ in
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: spinFrom == nil)) { timeline in
                 Canvas { ctx, sz in
-                    draw(ctx: ctx, size: sz, pal: pal)
+                    draw(ctx: ctx, size: sz, pal: pal, lam: lam(at: timeline.date))
                 }
-                .onChange(of: spinning) { _, _ in }
             }
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 2)
                     .onChanged { g in
-                        spinning = false
+                        freezeSpin()
                         if dragStart == nil { dragStart = (lam, phi) }
                         let k = 0.62 / zoom
                         lam = dragStart!.0 + g.translation.width * k
@@ -161,11 +174,11 @@ struct GlobeView: View {
             )
             .simultaneousGesture(
                 MagnificationGesture()
-                    .onChanged { v in zoom = max(1, min(6, zoomStart * v)) }
+                    .onChanged { v in freezeSpin(); zoom = max(1, min(6, zoomStart * v)) }
                     .onEnded { _ in zoomStart = zoom }
             )
             .onTapGesture { pt in
-                let proj = projector(for: size)
+                let proj = projector(for: size, lam: lam(at: Date()))
                 if let ll = proj.unproject(pt),
                    let c = countryAt(lon: ll.lon, lat: ll.lat, in: store.countries) {
                     onPick(c)
@@ -177,24 +190,26 @@ struct GlobeView: View {
 
     private var zoomButtons: some View {
         VStack(spacing: 6) {
-            Button { zoom = min(6, zoom * 1.4); zoomStart = zoom } label: { Image(systemName: "plus") }
-            Button { zoom = max(1, zoom / 1.4); zoomStart = zoom } label: { Image(systemName: "minus") }
-            Button { zoom = 1; zoomStart = 1; lam = 10; phi = 20; spinning = true } label: { Image(systemName: "arrow.counterclockwise") }
+            Button { freezeSpin(); zoom = min(6, zoom * 1.4); zoomStart = zoom } label: { Image(systemName: "plus") }
+            Button { freezeSpin(); zoom = max(1, zoom / 1.4); zoomStart = zoom } label: { Image(systemName: "minus") }
+            Button {
+                zoom = 1; zoomStart = 1; phi = 20; lam = 10
+                spinFrom = (Date(), 10)
+            } label: { Image(systemName: "arrow.counterclockwise") }
         }
         .font(.footnote.weight(.semibold))
         .buttonStyle(.bordered)
         .padding(12)
     }
 
-    private func projector(for size: CGSize) -> Projector {
+    private func projector(for size: CGSize, lam useLam: Double) -> Projector {
         Projector(center: CGPoint(x: size.width / 2, y: size.height / 2),
                   radius: min(size.width, size.height) / 2 * 0.9 * zoom,
-                  lam: lam, phi: phi)
+                  lam: useLam, phi: phi)
     }
 
-    private func draw(ctx: GraphicsContext, size: CGSize, pal: GlobePalette) {
-        if spinning { lam = (lam + 0.12).truncatingRemainder(dividingBy: 360) }
-        let proj = projector(for: size)
+    private func draw(ctx: GraphicsContext, size: CGSize, pal: GlobePalette, lam useLam: Double) {
+        let proj = projector(for: size, lam: useLam)
         let c = proj.center, R = proj.radius
 
         // 海

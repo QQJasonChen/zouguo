@@ -26,6 +26,7 @@ export class Globe {
     this.vel = 0; this.drag = null;
     this.touches = new Map(); this.pinch = null;
     this.colors = {};
+    this._lastHover = 0;
 
     this._bind();
     this.resize();
@@ -279,6 +280,9 @@ export class Globe {
         this.drag.moved += Math.abs(dx) + Math.abs(e.clientY - this.drag.y);
         return;
       }
+      const now = performance.now();
+      if (now - this._lastHover < 60) return;      // 節流：射線法要掃上萬個點
+      this._lastHover = now;
       const r = cv.getBoundingClientRect();
       const ll = this.unproject(e.clientX - r.left, e.clientY - r.top);
       const c = ll ? this.countryAt(ll[0], ll[1]) : null;
