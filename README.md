@@ -32,6 +32,16 @@ cd web && python3 -m http.server 8777
 
 **資料存哪**：`localStorage`，只在使用者自己的瀏覽器裡。沒有伺服器、沒有追蹤、不會上傳。
 
+### 冒煙測試
+
+```
+http://127.0.0.1:8777/index.html?selftest=1
+```
+
+會跑 13 項檢查（資料完整性、分享連結往返、反投影點名國家、PNG 輸出），
+結果印在畫面下方，標題列會顯示 `ALL PASS` 或 `N FAILED`。
+改完 `globe.js` 或資料檔請先跑這個。
+
 ## iOS 版
 
 ```bash

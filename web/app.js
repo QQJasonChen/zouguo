@@ -82,6 +82,63 @@ async function init() {
   globe.start();
   wire();
   render();
+
+  if (new URLSearchParams(location.search).get('selftest') === '1') selftest();
+}
+
+/* ---------- 冒煙測試：?selftest=1 ----------
+   結果同時寫進 document.title 與 console，方便 headless 抓。 */
+async function selftest() {
+  const out = [];
+  const ok = (name, cond, extra) => out.push((cond ? 'PASS ' : 'FAIL ') + name + (extra ? ' (' + extra + ')' : ''));
+
+  ok('國家資料載入', COUNTRIES.length > 180, COUNTRIES.length + ' 國');
+  ok('城市資料載入', CITIES.length > 10000, CITIES.length + ' 城市');
+  ok('每國都有中文名', COUNTRIES.every(c => c.zh && c.zh.length > 0));
+  ok('國家 id 唯一', new Set(COUNTRIES.map(c => c.id)).size === COUNTRIES.length);
+
+  // 分享連結往返，含中文與空陣列
+  const sample = { v: 1, c: { JP: { y: [2019], t: ['Tokyo'] }, TW: { y: [], t: ['台北'] } } };
+  let round = null;
+  try { round = dec(enc(sample)); } catch (e) { /* 下面會判失敗 */ }
+  ok('分享連結編解碼往返', JSON.stringify(round) === JSON.stringify(sample));
+
+  // base64 少了 padding 也要能解（Safari 的 atob 很挑）
+  let padOK = false;
+  try { padOK = dec(enc(sample).replace(/=+$/, '')) !== null; } catch (e) { padOK = false; }
+  ok('base64 缺 padding 仍可解', padOK);
+
+  // 反投影 → 點名國家：拿幾個明確的座標試
+  const probes = [[139.7, 35.7, 'JP'], [2.3, 48.9, 'FR'], [121.5, 25.0, 'TW'], [-99.1, 19.4, 'MX']];
+  for (const [lon, lat, want] of probes) {
+    const got = globe.countryAt(lon, lat);
+    ok(`座標落點 ${want}`, got && got.id === want, got ? got.id : 'null');
+  }
+  // 海上不該對到任何國家
+  ok('太平洋上不對到國家', globe.countryAt(-150, 0) === null);
+
+  // 匯出圖片真的產得出 PNG
+  const before = state;
+  state = demoState(); syncGlobe(); render();
+  const blob = await new Promise(res => {
+    const src = $('#globe');
+    const cv = document.createElement('canvas');
+    cv.width = 300; cv.height = 300;
+    cv.getContext('2d').drawImage(src, 0, 0, 300, 300);
+    cv.toBlob(res, 'image/png');
+  });
+  ok('地球畫布可輸出 PNG', blob && blob.size > 1000, blob ? blob.size + ' bytes' : 'null');
+  ok('範例資料統計正確', Object.keys(demoState().c).length === 9);
+  state = before; syncGlobe(); render();
+
+  const fails = out.filter(l => l.startsWith('FAIL'));
+  document.title = (fails.length ? `${fails.length} FAILED · ` : 'ALL PASS · ') + out.length + ' checks';
+  console.log('[selftest]\n' + out.join('\n'));
+  const box = document.createElement('pre');
+  box.id = 'selftest-out';
+  box.style.cssText = 'position:fixed;inset:auto 8px 8px 8px;z-index:99;background:var(--panel);border:1px solid var(--line);padding:10px;font-size:11px;max-height:40vh;overflow:auto;white-space:pre-wrap';
+  box.textContent = out.join('\n');
+  document.body.append(box);
 }
 
 function syncGlobe() {
