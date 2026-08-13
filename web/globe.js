@@ -42,7 +42,8 @@ export class Globe {
     this.cv.width = Math.round(r.width * dpr);
     this.cv.height = Math.round(r.height * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.R = Math.min(r.width, r.height) / 2 * 0.93 * this.zoom;
+    const fit = r.width < 560 ? 0.86 : 0.93;   // 手機上留多一點邊
+    this.R = Math.min(r.width, r.height) / 2 * fit * this.zoom;
     this.cx = r.width / 2; this.cy = r.height / 2;
     this.w = r.width; this.h = r.height;
   }
@@ -80,18 +81,21 @@ export class Globe {
     return [((lon + 540) % 360) - 180, lat / DEG];
   }
 
-  /** 經緯度落在哪個國家（射線法） */
+  /** 經緯度落在哪個國家（射線法）
+   *  交叉次數要「跨全部的環」累加，不能每環各自判定：
+   *  GeoJSON 的洞（南非裡的賴索托、義大利裡的梵蒂岡）也是一個環，
+   *  分開算會讓洞裡的點被判成外面那個國家。 */
   countryAt(lon, lat) {
     for (const c of this.countries) {
+      let crossings = 0;
       for (const ring of c.r) {
-        let inside = false;
         for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
           const xi = ring[i], yi = ring[i + 1], xj = ring[j], yj = ring[j + 1];
           if ((yi > lat) !== (yj > lat) &&
-              lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside;
+              lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) crossings++;
         }
-        if (inside) return c;
       }
+      if (crossings % 2 === 1) return c;
     }
     // 微型國家沒有多邊形：找 3 度內最近的
     let best = null, bd = 3;

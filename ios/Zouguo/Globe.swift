@@ -80,22 +80,23 @@ struct Projector {
     }
 }
 
-/// 經緯度落在哪個國家（射線法）
+/// 交叉次數要「跨全部的環」累加，不能每環各自判定：
+/// GeoJSON 的洞（南非裡的賴索托）也是一個環，分開算會讓洞裡的點被判成外面那國。
 func countryAt(lon: Double, lat: Double, in list: [Country]) -> Country? {
     for c in list {
+        var crossings = 0
         for ring in c.r {
-            var inside = false
             var j = ring.count - 2
             var i = 0
             while i < ring.count {
                 let xi = ring[i], yi = ring[i + 1]
                 let xj = ring[j], yj = ring[j + 1]
                 if (yi > lat) != (yj > lat),
-                   lon < (xj - xi) * (lat - yi) / (yj - yi) + xi { inside.toggle() }
+                   lon < (xj - xi) * (lat - yi) / (yj - yi) + xi { crossings += 1 }
                 j = i; i += 2
             }
-            if inside { return c }
         }
+        if crossings % 2 == 1 { return c }
     }
     // 微型國家沒有多邊形：找 3 度內最近的
     var best: Country? = nil

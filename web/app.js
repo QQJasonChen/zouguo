@@ -109,13 +109,17 @@ async function selftest() {
   ok('base64 缺 padding 仍可解', padOK);
 
   // 反投影 → 點名國家：拿幾個明確的座標試
-  const probes = [[139.7, 35.7, 'JP'], [2.3, 48.9, 'FR'], [121.5, 25.0, 'TW'], [-99.1, 19.4, 'MX']];
+  const probes = [[139.7, 35.7, 'JP'], [2.3, 48.9, 'FR'], [121.5, 25.0, 'TW'], [-99.1, 19.4, 'MX'],
+                  [28.23, -29.61, 'LS'],   // 賴索托：整個被南非包住，是南非多邊形裡的洞
+                  [24.75, -28.5, 'ZA'],    // 洞的外面仍要判成南非
+                  [12.48, 41.89, 'IT']];   // 羅馬市區不能被梵蒂岡搶走
   for (const [lon, lat, want] of probes) {
     const got = globe.countryAt(lon, lat);
     ok(`座標落點 ${want}`, got && got.id === want, got ? got.id : 'null');
   }
   // 海上不該對到任何國家
   ok('太平洋上不對到國家', globe.countryAt(-150, 0) === null);
+  ok('南極海不對到國家', globe.countryAt(0, -60) === null);
 
   // 匯出圖片真的產得出 PNG
   const before = state;
