@@ -1,0 +1,14 @@
+{
+  "name": "走過 · 你的世界地圖",
+  "short_name": "走過",
+  "description": "填一填去過哪裡，馬上變成一顆可以轉的地球。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F2F0EA",
+  "theme_color": "#C8452A",
+  "orientation": "any",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

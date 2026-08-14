@@ -2,7 +2,7 @@
 
 ## Web（GitHub Pages）
 
-`web/` 是純靜態，沒有建置步驟。跟 yike / gongdu / svroom 同一套做法。
+`docs/` 是純靜態，沒有建置步驟。跟 yike / gongdu / svroom 同一套做法。
 
 **第一次：**
 
