@@ -4,15 +4,11 @@
 
 `docs/` 是純靜態，沒有建置步驟。跟 yike / gongdu / svroom 同一套做法。
 
-**第一次：**
+**已經上線了**：https://qqjasonchen.github.io/zouguo/
 
-```bash
-cd ~/Projects/zouguo
-gh repo create zouguo --public --source=. --remote=origin --push
-```
+repo：https://github.com/QQJasonChen/zouguo（public，Pages 來源＝`main` 分支的 `/docs`）
 
-然後到 GitHub → Settings → Pages → Source 選 `main` 分支、資料夾選 `/docs`。
-幾分鐘後上線在 `https://qqjasonchen.github.io/zouguo/`。
+> GitHub Pages 只接受根目錄或 `/docs`，不能指定 `/web`——這就是資料夾叫 `docs/` 的原因。
 
 **之後每次更新：**
 
@@ -22,9 +18,8 @@ git add -A && git commit -m "..." && git push
 
 push 完就會自動更新，**不需要另外跑部署指令**（跟 Railway 那幾個專案不一樣）。
 
-> ⚠️ 上線後記得回頭改 `ios/Zouguo/Store.swift` 的 `webBase`，
-> 目前預設寫的是 `https://qqjasonchen.github.io/zouguo/`。
-> 如果最後用了別的網址，iOS 產生的分享連結會指到錯的地方。
+> `ios/Zouguo/Store.swift` 的 `webBase` 已經對到正式網址，不用再改。
+> 之後如果換網域，記得回來改這一行，否則 iOS 產生的分享連結會指到舊位置。
 
 **驗證上線：**
 
