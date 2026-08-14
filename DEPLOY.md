@@ -11,7 +11,7 @@ cd ~/Projects/zouguo
 gh repo create zouguo --public --source=. --remote=origin --push
 ```
 
-然後到 GitHub → Settings → Pages → Source 選 `main` 分支、資料夾選 `/web`。
+然後到 GitHub → Settings → Pages → Source 選 `main` 分支、資料夾選 `/docs`。
 幾分鐘後上線在 `https://qqjasonchen.github.io/zouguo/`。
 
 **之後每次更新：**
@@ -65,15 +65,15 @@ xcodebuild -project Zouguo.xcodeproj -scheme Zouguo \
 國界或城市清單要重建時：
 
 ```bash
-python3 scripts/build_data.py          # 重新產生 web/data/*.json
-cp web/data/*.json ios/Zouguo/Resources/   # iOS 那份也要同步
+python3 scripts/build_data.py          # 重新產生 docs/data/*.json
+cp docs/data/*.json ios/Zouguo/Resources/   # iOS 那份也要同步
 ```
 
 兩邊的資料檔必須一致，否則同一個分享連結在兩邊會對到不同國家。
 
 ## 檢查清單
 
-- [ ] `web/data/countries.json` 和 `ios/Zouguo/Resources/countries.json` 內容相同
+- [ ] `docs/data/countries.json` 和 `ios/Zouguo/Resources/countries.json` 內容相同
 - [ ] `Store.swift` 的 `webBase` 指向實際上線網址
 - [ ] Web 版在無痕視窗開得起來（確認沒有依賴本機 localStorage 的舊資料）
 - [ ] iOS 在模擬器跑過一次，地球畫得出來

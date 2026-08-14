@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """把 Natural Earth 國界與 GeoNames 城市表，壓成 web / iOS 共用的資料檔。
 
-輸出到 web/data/：
+輸出到 docs/data/：
   countries.json  國界多邊形 + 中英文名 + 中心座標
   cities.json     可搜尋的城市（人口門檻 + 各國首都 + 知名小鎮）
 """
@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from zh_names import ZH
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "..", "web", "data")
+OUT = os.path.join(HERE, "..", "docs", "data")
 os.makedirs(OUT, exist_ok=True)
 
 # 計入「世界進度」的集合：195（聯合國 193 會員＋梵蒂岡＋巴勒斯坦）再加上
